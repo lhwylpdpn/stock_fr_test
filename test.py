@@ -38,17 +38,17 @@ def load_data(str1):
 	for line in reader:
 		#print(float(line[-3]))
 		#data.append(float(re.split(" ",line[0])[-3]))
-		 data.append(float(line[-3]))
+		 data.append(float(line[-2]))
 	f.close()
 
 	return data
 
 def strategy_test():
 	static_=static()
-	data_=stock_data_all[0:144000*365*4]
+	data_=stock_data_all
 	print(len(data_),max(data_),min(data_))
 	print(data_[-1])
-	dis=0.002 	
+	dis=0.002
 	hope_open_low=data_[0]-dis
 	hope_open_high=data_[0]+dis
 	hope_open_sell_low=data_[0]+dis
@@ -60,7 +60,8 @@ def strategy_test():
 	num_low.append(1)
 	num_sell_low.append(1)
 	last_AccountEquity=0
-	last_x=0
+	last_x=[]
+	last_x.append(0)
 
 	num_high=[]
 	num_sell_high=[]
@@ -116,13 +117,13 @@ def strategy_test():
 		if data_[x]<=hope_open_low:
 			book.order_open(static_,"testpinzhong",x,1,num_low[-1],hope_open_low,hope_open_low+dis)
 			hope_open_low=hope_open_low-dis
-			num_low.append(num_low[-1]+num_low[-2])
+			num_low.append(num_low[-1]+1)
 		if data_[x]>=hope_open_high:
 			
 			#print(x,num_low[-1],data_[x])
 			book.order_open(static_,"testpinzhong",x,1,num_high[-1],hope_open_high,hope_open_high+dis)
 			hope_open_high=hope_open_high+dis
-			num_high.append(num_high[-1]+num_high[-2])
+			num_high.append(num_high[-1]+1)
 		
 		#每个单有一个关单值，超过了9关单
 
@@ -132,22 +133,23 @@ def strategy_test():
 		if data_[x]>=hope_open_sell_low:
 			book.order_open(static_,"testpinzhong",x,2,1,hope_open_sell_low,hope_open_sell_low-dis)
 			hope_open_sell_low=hope_open_sell_low+dis
-			num_sell_low.append(num_sell_low[-1]+num_sell_low[-2])
+			num_sell_low.append(num_sell_low[-1]+1)
 		if data_[x]<=hope_open_sell_high:
 			#print(x,num_sell_low[-1],data_[x])
 			book.order_open(static_,"testpinzhong",x,2,num_sell_high[-1],hope_open_sell_high,hope_open_sell_high-dis)
 			hope_open_sell_high=hope_open_sell_high-dis
-			num_sell_high.append(num_sell_high[-1]+num_sell_high[-2])
+			num_sell_high.append(num_sell_high[-1]+1)
 		#每个单有一个关单值，超过了9关单
 
 		#print(round(float(x)/float(len(data_)),4)*100)
 
 
 		static_.realtime_status_update("testpinzhong",x,data_[x])
-		if static_.AccountEquity[-1]-last_AccountEquity>3 or (x-last_x>144000 and static_.AccountEquity[-1]-last_AccountEquity>=0) :
+		if static_.AccountEquity[-1]-last_AccountEquity>3  :
 			#print(x,static_.AccountEquity[-1],last_AccountEquity)
 			last_AccountEquity=static_.AccountEquity[-1]
-			last_x=x+1
+			last_x.append(x)
+			book.report()
 			book.report_detail()
 			static_.clear_store()
 			num_high=[]
@@ -170,11 +172,12 @@ def strategy_test():
 			hope_open_sell_low=data_[x+1]+dis
 			hope_open_sell_high=data_[x+1]-dis
 			book=order_opreation()
-			book.order_open(static_,"testpinzhong",0,1,1,data_[x+1],data_[x+1]+dis)
-			book.order_open(static_,"testpinzhong",0,2,1,data_[x+1],data_[x+1]-dis)
-
+			book.order_open(static_,"testpinzhong",x,1,1,data_[x+1],data_[x+1]+dis)
+			book.order_open(static_,"testpinzhong",x,2,1,data_[x+1],data_[x+1]-dis)
 	book.report_detail()
+	book.report()
 	static_.result()
+	print(sum(list(map(lambda x: x[0]-x[1], zip(last_x[1:len(last_x)], last_x[0:-1]))))/(len(last_x)-1))
 	#static_.test()
 class order_opreation:
 	#book  status
@@ -313,7 +316,12 @@ class order_opreation:
 			temp=str(self.order_id_history[x])+",open price,"+str(self.order_open_price_history[x])+",close price,"+str(self.order_close_price_history[x])+",hope close,"+str(self.order_hope_close_history[x])+",num:,"+str(self.order_num_history[x])+",open time ,"+str(self.order_open_time_history[x])+",close time ,"+str(self.order_close_time_history[x])+"status,"+str(self.order_status_history[x])+" buy or sell,"+str(self.order_buyorsell_history[x])
 			csvfile.write(temp+"\n")
 		csvfile.close()
-
+	def report(self):
+		csvfile=file("report_order.csv",'a')
+		temp="ount_orderid,"+str(sum(self.order_id)+sum(self.order_id_history))+",all_count_num,"+str(sum(self.order_num)+sum(self.order_num_history))+",open_order_count,"+str(sum(self.order_id))+",avg profit, 	"+str(sum(list(map(lambda x: abs(x[0]-x[1]), zip(self.order_close_price_history,self.order_open_price_history))))/len(list(map(lambda x: abs(x[0]-x[1]), zip(self.order_close_price_history,self.order_open_price_history)))))+",avg close time,"+str(sum(list(map(lambda x: x[0]-x[1], zip(self.order_close_time_history,self.order_open_time_history))))/len(list(map(lambda x: x[0]-x[1], zip(self.order_close_time_history,self.order_open_time_history)))))
+		csvfile.write(temp+"\n")
+		#总开单数，平仓单数，剩余单数，平均每单交易时间，平均每单利润，每次清仓时间，最大回撤
+		csvfile.close()
 
 
 class static:
@@ -384,9 +392,9 @@ class static:
 		#print(self.AccountFreeMargin,sum(self.num_sell_all),sum(self.num_sell_all)*price,sum(self.num_buy_all),sum(self.num_buy_all)*price,self.AccountFreeMargin-sum(self.num_sell_all)*price+sum(self.num_buy_all)*price,price)
 		self.AccountEquity.append(1000*(self.AccountFreeMargin-sum(self.num_sell_all)*price+sum(self.num_buy_all)*price))
 	def result(self):
-		self.json_write(self.AccountEquity,"money","w","/Library/WebServer/Documents/")
-		self.json_write(self.price_,"price","w","/Library/WebServer/Documents/")
-		self.json_write(self.num_all,"num","w","/Library/WebServer/Documents/")
+		#self.json_write(self.AccountEquity,"money","w","/Library/WebServer/Documents/")
+		#self.json_write(self.price_,"price","w","/Library/WebServer/Documents/")
+		#self.json_write(self.num_all,"num","w","/Library/WebServer/Documents/")
 
 		#print("last sell num :",sum(self.num_sell_all),"lase buy num :",sum(self.num_buy_all),"trade buy count:",sum(self.trader_buy_count),"trade sell count:",sum(self.trader_sell_count),"trade sell num:",sum(self.trader_sell_num),"trade buy num:",sum(self.trader_buy_num))
 		#print("last money:",self.AccountEquity[-1],"min money:",min(self.AccountEquity),"restart_count:",self.restart_count)
@@ -422,7 +430,9 @@ if __name__ == '__main__':
 		os.remove("report_all.csv")
 	if  os.path.exists("report_detail.csv"):
 		os.remove("report_detail.csv")
+	if  os.path.exists("report_order.csv"):
+		os.remove("report_order.csv")
 	stock_data_all=[]
-	stock_data_all=load_data("AUDCAD_tick")
+	stock_data_all=load_data("AUDCAD_UTC_1 Min_Bid_2009.12.31_2016.12.31")
 	strategy_test()
 	print time.asctime(time.localtime(time.time()))
